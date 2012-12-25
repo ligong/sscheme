@@ -2,12 +2,12 @@ struct TypedPointer
 {
   enum {kInt,kBigNumber,kFloat,kString,kSymbol,kPair,kNULL} type;
   union {
-    int i;       // integer
-    float f;     // float
-    char* str;   // pointer to string
-    Atom* sym;   // pointer to symbol
+    int i;                   // integer
+    float f;                 // float
+    char* str;               // pointer to string
+    const char* sym;         // pointer to symbol
     char bytes[sizeof long];
-    int p;       // cons vectors index, big number is also a list
+    int p;      // cons vectors index, big number is also a list
   };
 };
 
@@ -172,14 +172,14 @@ struct Token
     int i;       // integer
     float f;     // float
     char* str;   // pointer to string
-    Atom* sym;   // pointer to symbol
+    const char* sym;   // pointer to symbol
     BigNum* bign; 
   };
   Token(type t): type(t) { }
   Token(int ii): type(kInt), i(ii) { }
   Token(float ff): type(kFloat), f(ff) { }
   Token(char* s): str(s) { }
-  Token(Atom* sy): sym(sy) { }
+  Token(const char* sy): sym(sy) { }
   Token(BigNum* b): bign(b) { }
 };
 
@@ -192,6 +192,7 @@ class TokenStream
   FILE* file_;
 };
 
+
 Token TokenStream::Next()
 {
   int c;
@@ -202,7 +203,7 @@ Token TokenStream::Next()
     ;
   if (c == EOF)
     return Token(Token::kNULL);
-  else if (isdigit(c))
+  else if (isdigit(c) || (c == '+') || (c == '-'))
     return NextNumber(c);
   else if (c == '\"')
     return NextString();
@@ -234,7 +235,7 @@ Token TokenStream::NextNumber()
   int n;
   if (ParseInt(buf,&n))
     return Token(n);
-  else if (BigNum* bign = ParseBigNum(buf))
+  else if (BigNum *bign = ParseBigNum(buf))
     return Token(bign);
   else
     raise ReadErr("parse big number error");
@@ -278,13 +279,12 @@ Token TokenStream::NextSymbol(int c)
   for(i = 0; i < NELEMS(buf)-1 && (c = getc(file_)) != EOF && issymbol(c); i++)
     buf[i] = c;
   buf[i++] = '\0';
-  return Token(NewAtom(buf));
+  return Token(Atom::New(buf));
 }
 
     
 class Machine
 {
-  
  public:
 
   Machine();
