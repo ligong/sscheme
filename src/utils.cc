@@ -1,7 +1,8 @@
-#ifndef SSCHEME_SRC_UTILS_H_
-#define SSCHEME_SRC_UTILS_H_
-
+#include "utils.h"
 #include <limits.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <stdio.h>
 
 namespace sscheme {
 
@@ -35,5 +36,48 @@ bool ParseInt(const char* str, long* n)
   return true;
 }
 
+void* Mem_alloc(long nbytes, const char *file, int line)
+{
+  void* ptr;
+  assert(nbytes > 0);
+  ptr = malloc(nbytes);
+  if (ptr == NULL) {
+    printf("%s,%d:",file,line);
+    ERROR("out of memory");
+  }
+  return ptr;
+}
+  
+void* Mem_calloc(long count, long nbytes, const char* file, int line)
+{
+  void* ptr;
+  assert(count > 0);
+  assert(nbytes > 0);
+  ptr = calloc(count, nbytes);
+  if (ptr == NULL) {
+    printf("%s,%d:",file,line);
+    ERROR("out of memory");
+  }
+  return ptr;
+}
+    
+void* Mem_resize(void* ptr, long nbytes, const char* file, int line)
+{
+  assert(ptr);
+  assert(nbytes > 0);
+  ptr = realloc(ptr, nbytes);
+  if (ptr == NULL) {
+    printf("%s,%d:",file,line);
+    ERROR("out of memory");
+  }
+  return ptr;
+}
+
+void  Mem_free(void* ptr, const char* file, int line)
+{
+  if (ptr)
+    free(ptr);
+}
+
 } // namespace sscheme
-#endif
+

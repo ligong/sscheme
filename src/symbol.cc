@@ -1,4 +1,4 @@
-#include "atom.h"
+#include "symbol.h"
 #include <climits>
 #include <string.h>
 #include <stdlib.h>
@@ -8,13 +8,13 @@
 
 namespace {
 
-static struct AtomElt {
-  AtomElt* next;
+static struct SymbolElt {
+  SymbolElt* next;
   int len;
   char bytes[1];
-}* buckets[ATOM_BUCKETS_SIZE];
+}* g_buckets[ATOM_BUCKETS_SIZE];
 
-static long scatter[256] = {
+static long g_scatter[256] = {
 1804289383,846930886,1681692777,1714636915,1957747793,424238335,719885386,1649760492,
 596516649,1189641421,1025202362,1350490027,783368690,1102520059,2044897763,1967513926,
 1365180540,1540383426,304089172,1303455736,35005211,521595368,294702567,1726956429,
@@ -53,72 +53,43 @@ static long scatter[256] = {
 
 namespace sscheme {
 
-const char* Atom::New(long n)
-{
-  char buf[43];
-  unsigned long m;
-  if (n == LONG_MIN)
-    m = LONG_MAX + 1UL;
-  else if (n < 0)
-    m = -n;
-  else
-    m = n;
-  char* s = buf + sizeof buf;
-  do {
-    *--s = m%10 + '0';
-  }while( (m/=10) != 0);
-  if (n < 0)
-    *--s = '-';
-  return New(s,(buf+sizeof buf) - s);
-}
-
-const char* Atom::New(const char* str)
+const char* Symbol::New(const char* str)
 {
   return New(str,strlen(str));
 }
 
-const char* Atom::New(const std::string& str)
+const char* Symbol::New(const std::string& str)
 {
   return New(str.c_str());
 }
 
-const char* Atom::New(const char* bytes, int len)
+const char* Symbol::New(const char* bytes, int len)
 {
   // calculate hash value
   unsigned long h;
   h = 0;
   for(int i = 0; i < len; i++)
-    h = (h<<1) + scatter[(unsigned char)bytes[i]];
-  h %= NELEMS(buckets);
+    h = (h<<1) + g_scatter[(unsigned char)bytes[i]];
+  h %= NELEMS(g_buckets);
 
   // return existing one if found
-  AtomElt* p;
-  for(p = buckets[h]; p; p = p->next)
+  SymbolElt* p;
+  for(p = g_buckets[h]; p; p = p->next)
     if (p->len == len && memcmp(bytes,p->bytes,len) == 0)
       return p->bytes;
   
   // alloc atom, p->bytes's length is len+1 
-  p = static_cast<AtomElt*>(malloc(sizeof(AtomElt) + len));
+  p = static_cast<SymbolElt*>(malloc(sizeof(SymbolElt) + len));
   assert(p);
   p->len = len;
   memcpy(p->bytes,bytes,len);
   p->bytes[len] = '\0';
 
   // insert the new atom into buckets
-  p->next = buckets[h];
-  buckets[h] = p;
+  p->next = g_buckets[h];
+  g_buckets[h] = p;
   
   return p->bytes;
-}
-
-int Atom::Length(const char* atom)
-{
-  for(int i = 0; i < NELEMS(buckets); i++)
-    for(AtomElt* p = buckets[i]; p; p = p->next)
-      if (p->bytes == atom)
-        return p->len;
-  assert(0);
-  return -1;
 }
 
 } // namespace sscheme

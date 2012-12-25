@@ -18,13 +18,19 @@ TEST_LIB = $(GTEST_PATH)/libgtest.a -lpthread
 CXXFLAGS += -Wall -I. -I$(GTEST_PATH)/include $(OPT)
 LIBS +=
 
-SOURCES = $(shell find src -name '*test*.cc' -prune -o '*.cc' -print | sort | tr "\n" " ")
+SOURCES = $(shell find src -name '*test*.cc' -prune -o -name '*.cc' -print | sort | tr "\n" " ")
 TEST_SOURCES = $(shell find src -name '*test*.cc' | sort | tr "\n" " ")
-TEST_SOURCES += src/atom.cc src/utils.cc
+TEST_SOURCES += src/symbol.cc src/utils.cc src/memory.cc src/token.cc src/reader.cc
+
 
 OBJECTS = $(SOURCES:.cc=.o)
 TEST_OBJECTS = $(TEST_SOURCES:.cc=.o)
 
+
+all: sscheme
+
+sscheme: $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(OBJECTS) -o sscheme
 
 test: $(TEST_OBJECTS)
 	$(CXX) $(CXXFLAGS) $(TEST_OBJECTS) -o test $(TEST_LIB)
@@ -36,4 +42,4 @@ run_test: test
 	./test
 
 clear:
-	find . -name "*.o" -o -name test |xargs rm
+	find . -name "*.o" -o -name test -o -name sscheme -name "*~" |xargs rm
