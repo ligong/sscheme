@@ -15,6 +15,9 @@ static Data FrameVals(Data frame);
 static Data EnclosingEnvironment(Data env);
 static Data ExtendEnvironment(Data parameters, Data operands, Data env);
 static Data LookupEnvironment(Data var, Data env);
+static bool IsFalse(Data val);
+static bool IsTrue(Data val);
+
 
 static bool IsSelfEval(Data exp)
 {
@@ -139,10 +142,13 @@ static bool IsDefine(Data exp)
 static Data DefineVar(Data exp)
 {
   Data second = SECOND(exp);
+  Data var;
   if (second.IsPair()) 
-    return FIRST(second);
+    var = FIRST(second);
   else
-    return second;
+    var = second;
+  assert(var.IsSymbol());
+  return var;
 }
 
 static Data DefineValue(Data exp)
@@ -160,25 +166,26 @@ static Data EvalDefine()
   Data& exp = g_machine.exp;
   Data& env = g_machine.env;
   Data& val = g_machine.val;
-  Data& unev = g_machine.unev;
+  Data var;
 
-  unev = DefineVar(exp);
+  var = DefineVar(exp);
+
   g_machine.Push(env);
   exp = DefineValue(exp);
   val = Eval();
   env = g_machine.Pop();
-  EnvironmentDefineVar(unev,val,env);
+  EnvironmentDefineVar(var,val,env);
   return val;
 }
 
-static bool IsSingleton(Data list)
+static bool IsLast(Data list)
 {
   return list.IsPair() && CDR(list).IsNull();
 }
 
 static bool IsLastAction(Data exp)
 {
-  return IsSingleton(exp);
+  return IsLast(exp);
 }
 
 static Data EvalSequence()
@@ -253,7 +260,6 @@ static bool IsIf(Data exp)
 }
 
 
-
 static Data IfCond(Data exp)
 {
   return SECOND(exp);
@@ -311,16 +317,98 @@ static Data ExpandCondClauses(Data clauses)
   }
 }
 
+static bool IsAnd(Data exp)
+{
+  static const char* s_and = Symbol::New("and");
+  return StartWith(exp,s_and);
+}
+
+static bool IsOr(Data exp)
+{
+  static const char* s_or = Symbol::New("or");
+  return StartWith(exp,s_or);
+}
+
+static Data AndConditions(Data exp)
+{
+  return REST(exp);
+}
+
+static Data EvalAnd()
+{
+  Data& exp = g_machine.exp;
+  Data& unev = g_machine.unev;
+  Data& env = g_machine.env;
+  
+  unev = exp;
+
+  if (unev.IsNull())
+    return Data::t;
+
+  while(!IsLast(unev)) {
+    g_machine.Push(env);
+    g_machine.Push(unev);
+    exp = FIRST(unev);
+    Data val = Eval();
+    unev = g_machine.Pop();
+    env = g_machine.Pop();
+    if (IsFalse(val))
+      return Data::f;
+    unev = REST(unev);
+  }
+
+  exp = FIRST(unev);
+  return Eval();
+}
+
+static Data OrConditions(Data exp)
+{
+  return REST(exp);
+}
+
+static Data EvalOr()
+{
+  Data& exp = g_machine.exp;
+  Data& unev = g_machine.unev;
+  Data& env = g_machine.env;
+  
+  unev = exp;
+
+  if (unev.IsNull())
+    return Data::f;
+
+  while(!IsLast(unev)) {
+    g_machine.Push(env);
+    g_machine.Push(unev);
+    exp = FIRST(unev);
+    Data val = Eval();
+    unev = g_machine.Pop();
+    env = g_machine.Pop();
+    if (IsTrue(val))
+      return val;
+    unev = REST(unev);
+  }
+
+  exp = FIRST(unev);
+  return Eval();
+}
+
 // Convert cond expression to if expression
 static Data CondToIf()
 {
   Data& exp = g_machine.exp;
   return exp = ExpandCondClauses(CondClauses(exp));
 }
+    
+static bool IsFalse(Data val)
+{
+  return val.IsNull();
+}
+
 
 static bool IsTrue(Data val)
 {
-  return !val.IsNull();
+  return !IsFalse(val);
 }
 
 static Data EvalIf()
@@ -381,6 +469,18 @@ static Data EvalApp()
 
 static Data g_empty_environment;
 
+void PrintEnvVars()
+{
+  Data env = g_machine.env;
+  
+  while (!IsEnvironmentEmpty(env)) {
+    Data frame = EnvironmentFrame(env);
+    Data vars = FrameVars(frame);
+    Print(vars);
+    env = EnclosingEnvironment(env);
+  }
+}
+
 // Look up var in current environment
 // If not found, return Data::none
 static Data LookupEnvironment(Data var, Data env)
@@ -405,7 +505,6 @@ static Data LookupEnvironment(Data var, Data env)
 
   return Data::none;
 }
-  
 
 static Data ExtendEnvironment(Data parameters, Data operands, Data env)
 {
@@ -471,6 +570,27 @@ static void FrameSet(Data vars, Data vals, Data frame)
   SETCDR(frame,vals);
 }
 
+static Data GetGlobalEnvironment()
+{
+  Data env = g_machine.env;
+
+  assert(!IsEnvironmentEmpty(env));
+
+  Data outer = EnclosingEnvironment(env);
+  
+  while (!IsEnvironmentEmpty(outer)) {
+    env = outer;
+    outer = EnclosingEnvironment(outer);
+  }
+
+  return env;
+}
+
+void RestoreGlobalEnvironment()
+{
+  g_machine.env = GetGlobalEnvironment();
+}
+
 static void EnvironmentDefineVar(Data var, Data val, Data env)
 {
   assert(!IsEnvironmentEmpty(env));
@@ -481,7 +601,7 @@ static void EnvironmentDefineVar(Data var, Data val, Data env)
   Data& vars = g_machine.unev;
   Data& vals = g_machine.arg1;
   Data& new_val = g_machine.proc;
-  
+
   frame = EnvironmentFrame(env);
   vars = FrameVars(frame);
   vals = FrameVals(frame);
@@ -497,15 +617,15 @@ static void EnvironmentDefineVar(Data var, Data val, Data env)
     assert((vars.IsNull() && vals.IsNull()) ||
            (!vars.IsNull() && !vals.IsNull()));
   }
-  
-  vals = CONS(new_val,vals);
-  vars = CONS(var,vars);
+
+  vars = CONS(var,FrameVars(frame));
+  vals = CONS(new_val,FrameVals(frame));
   FrameSet(vars,vals,frame);
 }
 
 static bool IsLastOperand(Data operands)
 {
-  return IsSingleton(operands);
+  return IsLast(operands);
 }
 
 static Data EvalOperands()
@@ -658,27 +778,96 @@ static Data PrimDiv(Data args)
   return Memory::NewFloat(f);
 }
 
+static Data Bool(int pred)
+{
+  return pred? Data::t : Data::f;
+}
+
 static Data PrimEq(Data args)
 {
   if (LENGTH(args) != 2)
     ERROR("eq operation: parameters wrong");
-  
-  if (FIRST(args) == SECOND(args))
-    return Data::t;
-  else
-    return Data::f;
+  return Bool(FIRST(args) == SECOND(args));
 }
 
+#define CMP(x,y,op)                         \
+  if (x.IsInt()) {                          \
+    if (y.IsInt()) {                        \
+       return Bool(x.Int() op y.Int());     \
+    } else if (y.IsFloat()) {               \
+       return Bool(x.Int() op y.Float());   \
+    } else {                                \
+       ERROR("CMP wrong type");             \
+       return Data::f;                      \
+    }                                       \
+  } else if (x.IsFloat()) {                 \
+    if (y.IsInt()) {                        \
+      return Bool(x.Float() op y.Int());    \
+    } else if (y.IsFloat()) {               \
+      return Bool(x.Float() op y.Float());  \
+    } else {                                \
+      return Data::f;                       \
+    }                                       \
+  } else {                                  \
+      ERROR("CMP wrong type x");            \
+      return Data::f;                       \
+  }
+
+static Data PrimLT(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR("< operation: parameters wrong");
+
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  if (!(arg1.IsNumber() && arg2.IsNumber()))
+    ERROR("< operation: parameters type wrong");
+  CMP(arg1,arg2,<);
+}
+
+static Data PrimLE(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR("<= operation: parameters wrong");
+
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  if (!(arg1.IsNumber() && arg2.IsNumber()))
+    ERROR("<= operation: parameters type wrong");
+  CMP(arg1,arg2,<=);
+}
+
+
+static Data PrimGT(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR("> operation: parameters wrong");
+
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  if (!(arg1.IsNumber() && arg2.IsNumber()))
+    ERROR("> operation: parameters type wrong");
+  CMP(arg1,arg2,>);
+}
+
+static Data PrimGE(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR(">= operation: parameters wrong");
+
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  if (!(arg1.IsNumber() && arg2.IsNumber()))
+    ERROR(">= operation: parameters type wrong");
+  CMP(arg1,arg2,>=);
+}
 
 static Data PrimStringEqP(Data args)
 {
   if (LENGTH(args) != 2 ||
       !FIRST(args).IsString() || !SECOND(args).IsString())
     ERROR("string= operation: parameters wrong");
-  if (strcmp(FIRST(args).String(),SECOND(args).String()) == 0)
-    return Data::t;
-  else
-    return Data::f;
+  return Bool(strcmp(FIRST(args).String(),SECOND(args).String()) == 0);
 }
 
 static Data PrimAtomP(Data args)
@@ -686,42 +875,111 @@ static Data PrimAtomP(Data args)
   if (LENGTH(args) != 1)
     ERROR("atom? operation: parameters wrong");
   
-  if (FIRST(args).IsAtom())
-    return Data::t;
-  else
-    return Data::f;
+  return Bool(FIRST(args).IsAtom());
 }
 
 static Data PrimPairP(Data args)
 {
   if (LENGTH(args) != 1)
     ERROR("pair? operation: parameters wrong");
-  if (FIRST(args).IsPair())
-    return Data::t;
-  else
-    return Data::f;
+  return Bool(FIRST(args).IsPair());
 }
 
 static Data PrimStringP(Data args)
 {
   if (LENGTH(args) != 1)
     ERROR("string? operation: parameters wrong");
-  if (FIRST(args).IsString())
-    return Data::t;
-  else
-    return Data::f;
+  return Bool(FIRST(args).IsString());
 }
 
 static Data PrimNumberP(Data args)
 {
   if (LENGTH(args) != 1)
     ERROR("number? operation: parameters wrong");
-  if (FIRST(args).IsNumber())
-    return Data::t;
-  else
-    return Data::f;
+  return Bool(FIRST(args).IsNumber());
 }
 
+static Data PrimNot(Data args)
+{
+  if (LENGTH(args) != 1)
+    ERROR("not operation: parameters wrong");
+  return Bool(IsFalse(FIRST(args)));
+}
+
+static Data PrimCar(Data args)
+{
+  if (!IsLast(args))
+    ERROR("car operation: parameters wrong");
+  Data arg = FIRST(args);
+  return CAR(arg);
+}
+
+static Data PrimCdr(Data args)
+{
+  if (!IsLast(args))
+    ERROR("car operation: parameters wrong");
+  Data arg = FIRST(args);
+  return CDR(arg);
+}
+
+static Data PrimCons(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR("car operation: parameters wrong");
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  return CONS(arg1,arg2);
+}
+
+static Data PrimList(Data args)
+{
+  return args;
+}
+
+static Data PrimSetCar(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR("set-car operation: parameters wrong");
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  if (!arg1.IsPair())
+    ERROR("set-car operation: first parameter must be pair");
+  SETCAR(arg1,arg2);
+  return arg2;
+}
+
+static Data PrimSetCdr(Data args)
+{
+  if (LENGTH(args) != 2)
+    ERROR("set-cdr operation: parameters wrong");
+  Data arg1 = FIRST(args);
+  Data arg2 = SECOND(args);
+  if (!arg1.IsPair())
+    ERROR("set-cdr operation: first parameter must be pair");
+  SETCDR(arg1,arg2);
+  return arg2;
+}
+
+static Data PrimDisplay(Data args)
+{
+  bool first = true;
+  while(!args.IsNull()) {
+    if (!first)
+      printf(" ");
+    else
+      first = false;
+    Print(FIRST(args));
+    args = REST(args);
+  }
+  return Data::ok;
+}
+
+static Data PrimNewLine(Data args)
+{
+  printf("\n");
+  return Data::ok;
+}
+ 
 void InitialEnvironment()
 {
   Data& vars = g_machine.exp;
@@ -732,14 +990,21 @@ void InitialEnvironment()
 #define S(x) Memory::NewSymbol(Symbol::New(x))
 #define P(x) Memory::NewProc(x)
   vars = LIST(S("+"),S("-"),S("*"),S("/"),
-              S("eq"),S("="),
+              S("eq?"),S("="), S("<"),S("<="),S(">"),S(">="),
               S("string?"),S("string=?"),S("number?"),S("atom?"),
+              S("not"),S("cons"),S("car"),S("cdr"),S("list"),
+              S("set-car!"),S("set-cdr!"),
+              S("display"),S("newline"),
               S("pair?"));
            
   vals = LIST(P(PrimAdd),P(PrimSub),P(PrimMul),P(PrimDiv),
-              P(PrimEq),P(PrimEq),
+              P(PrimEq),P(PrimEq),P(PrimLT),P(PrimLE),P(PrimGT),P(PrimGE),
               P(PrimStringP),P(PrimStringEqP),
-              P(PrimNumberP),P(PrimAtomP), P(PrimPairP));
+              P(PrimNumberP),P(PrimAtomP),
+              P(PrimNot),P(PrimCons),P(PrimCar),P(PrimCdr),P(PrimList),
+              P(PrimSetCar),P(PrimSetCdr),
+              P(PrimDisplay),P(PrimNewLine),
+              P(PrimPairP));
   g_machine.env = ExtendEnvironment(vars, vals, g_empty_environment);
 }
 
@@ -794,6 +1059,12 @@ Data Eval()
   else if (IsBegin(exp)) {
     exp = BeginActions(exp);
     val = EvalSequence();
+  } else if (IsAnd(exp)) {
+    exp = AndConditions(exp);
+    val = EvalAnd();
+  } else if (IsOr(exp)) {
+    exp = OrConditions(exp);
+    val = EvalOr();
   } else if (IsCond(exp)) {
     exp = CondToIf();
     val = Eval();
@@ -809,7 +1080,9 @@ Data Eval(const char* str)
 {
   Data& exp = g_machine.exp;
   exp = Read(str);
-  return Eval();
+  Data val = Eval();
+  RestoreGlobalEnvironment();
+  return val;
 }
 
 } // namespace sscheme

@@ -47,11 +47,14 @@ Data& Data::operator=(const Data& x)
   return *this;
 }
 
+Data& Data::operator=(const Data& x);
+
 Data Data::null(Data::kNull);
 Data Data::none(Data::kNone);
 Data Data::end_list(Data::kEndList);
 Data Data::f(Data::kNull);
-Data Data::t = Memory::NewSymbol(Symbol::New("true"));
+Data Data::t = Memory::NewSymbol(Symbol::New("#t"));
+Data Data::ok = Memory::NewSymbol(Symbol::New("ok"));
 
 bool operator==(const Data& x, const Data& y)
 {
@@ -72,6 +75,11 @@ bool operator==(const Data& x, const Data& y)
     return x.data.proc == y.data.proc;
   else
     return true;
+}
+
+bool operator!=(const Data& x, const Data& y)
+{
+  return !(x==y);
 }
 
 Data* Memory::car_;

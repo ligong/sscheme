@@ -14,6 +14,10 @@ Data Apply();
 
 void InitialEnvironment();
 
+void PrintEnvVars();
+
+void RestoreGlobalEnvironment();
+
 } // namespace sscheme
 
 #endif

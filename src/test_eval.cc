@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
 #include <string.h>
 #include <fstream>
+#include <string>
+#include <stdlib.h>
 
 #include "memory.h"
 #include "symbol.h"
@@ -12,6 +14,30 @@
 
 using namespace sscheme;
 
+#define EXPECT_SYMEQ(sym_str,x)  {                      \
+    EXPECT_TRUE(x.IsSymbol());                          \
+    EXPECT_EQ(Symbol::New(sym_str),x.Symbol()); }
+
+#define EXPECT_INTEQ(i,x)  {                    \
+    EXPECT_TRUE(x.IsInt());                     \
+    EXPECT_EQ(i,x.Int()); }
+
+#define EXPECT_FLOATEQ(f,x) {                   \
+    EXPECT_TRUE(x.IsFloat());                   \
+    EXPECT_EQ(i,x.Float()); }
+
+#define EXPECT_LISTEQ(list,x) {                 \
+    EXPECT_TRUE(x.IsList());                    \
+    EXPECT_TRUE(EQUAL(list,x));}                \
+
+#define EXPECT_BOOLFALSE(x)                     \
+  EXPECT_TRUE(x == Data::f);
+
+#define EXPECT_BOOLTRUE(x)                      \
+  EXPECT_TRUE(x != Data::f);
+
+#define SYM(x) (Memory::NewSymbol(Symbol::New(x)))
+#define INT(x) (Memory::NewInt(x))
 
 class EvalTest : public ::testing::Test {
  protected:
@@ -21,7 +47,6 @@ class EvalTest : public ::testing::Test {
   }
   // virtual void TearDown() {}
 };
-
 
 TEST_F(EvalTest, test_atom) {
   
@@ -50,26 +75,6 @@ TEST_F(EvalTest, test_atom) {
   EXPECT_EQ(Data::null, result);
 
 }
-
-#define EXPECT_SYMEQ(sym_str,x)  {                      \
-    EXPECT_TRUE(x.IsSymbol());                          \
-    EXPECT_EQ(Symbol::New(sym_str),x.Symbol()); }
-
-#define EXPECT_INTEQ(i,x)  {                    \
-    EXPECT_TRUE(x.IsInt());                     \
-    EXPECT_EQ(i,x.Int()); }
-
-#define EXPECT_FLOATEQ(f,x)   {                 \
-    EXPECT_TRUE(x.IsFloat());                   \
-    EXPECT_EQ(i,x.Float()); }
-
-#define EXPECT_LISTEQ(list,x)   {               \
-    EXPECT_TRUE(x.IsList());                    \
-    EXPECT_TRUE(EQUAL(list,x)); }
-
-
-
-#define SYM(x) (Memory::NewSymbol(Symbol::New(x)))
 
 TEST_F(EvalTest, test_quote)
 {
@@ -138,7 +143,6 @@ TEST_F(EvalTest, test_if)
   
 }
 
-
 TEST_F(EvalTest, test_lambda)
 {
   Data value;
@@ -170,13 +174,189 @@ TEST_F(EvalTest, test_lambda)
                           a  \
                           (iter b (+ a b) (+ 1 k)))) \
                    (iter 0 1 0))");
-  Print(SECOND(value));
-  value = Eval("(fib 0)");
+
+  int fib[] = {0,1,1,2,3,5,8,13,21};
+  for(int i = 0; i < NELEMS(fib); i++) {
+    char buf[100];
+    snprintf(buf,sizeof(buf),"(fib %d)",i);
+    value = Eval(buf);
+    EXPECT_INTEQ(fib[i],value);
+  }
+
+  // factorial
+  Eval("(define (factorial n) \
+          (if (= n 1) 1  (* n (factorial (- n 1)))))");
+  value = Eval("(factorial 6)");
+  EXPECT_INTEQ(720,value);
+
+  // closure
+  // adder
+  Eval("(define (adder n) \
+                   (lambda (x) (+ n x)))");
+  Eval("(define add5 (adder 5))");
+  value = Eval("(add5 3)");
   EXPECT_INTEQ(8,value);
-    
+
+  // balance
+  Eval("(define (make-account account)                  \
+          (define (withdraw n)                          \
+            (if (>= account n)                          \
+	       (set! account (- account n)))            \
+               account)                                 \
+          (define (deposit n)                           \
+            (set! account (+ account n))                \
+             account)                                   \
+         (lambda (msg)                                  \
+           (cond ((eq? msg (quote withdraw)) withdraw)  \
+   	     ((eq? msg (quote deposit)) deposit)        \
+	     ((eq? msg (quote account)) account))))");
+
+  Eval("(define acc (make-account 10))");
+  value = Eval("((acc (quote withdraw)) 1)");
+  EXPECT_INTEQ(9,value);
+  value = Eval("((acc (quote deposit)) 20)");
+  EXPECT_INTEQ(29,value);
+  value = Eval("(acc (quote account))");
+  EXPECT_INTEQ(29,value);
+  value = Eval("((acc (quote withdraw)) 30)");
+  EXPECT_INTEQ(29,value);
+  value = Eval("((acc (quote withdraw)) 29)");
+  EXPECT_INTEQ(0,value);
+}
+
+TEST_F(EvalTest, test_primitive_application)
+{
+  Data value;
+  
+  // <
+  value = Eval("(< 2 3)");
+  EXPECT_BOOLTRUE(value);
+  value = Eval("(< 2 2)");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(< 3 2)");
+  EXPECT_BOOLFALSE(value);
+
+  // <=
+  value = Eval("(<= 2 3)");
+  EXPECT_BOOLTRUE(value);
+  value = Eval("(<= 2 2)");
+  EXPECT_BOOLTRUE(value);
+  value = Eval("(<= 3 2)");
+  EXPECT_BOOLFALSE(value);
+
+  // >
+  value = Eval("(> 2 3)");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(> 2 2)");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(> 3 2)");
+  EXPECT_BOOLTRUE(value);
+
+  // >=
+  value = Eval("(>= 2 3)");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(>= 2 2)");
+  EXPECT_BOOLTRUE(value);
+  value = Eval("(>= 3 2)");
+  EXPECT_BOOLTRUE(value);
+
+  // not
+  value = Eval("(not ())");
+  EXPECT_BOOLTRUE(value);
+
+  // and
+  value = Eval("(and 1 2 3)");
+  EXPECT_INTEQ(3,value);
+  value = Eval("(and () baz ())");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(and)");
+  EXPECT_BOOLTRUE(value);
+  value = Eval("(and 3 (+ 4 5))");
+  EXPECT_INTEQ(9,value);
+  value = Eval("(and ())");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(and () no error)");
+  EXPECT_BOOLFALSE(value);
+
+  // or
+  value = Eval("(or)");
+  EXPECT_BOOLFALSE(value);
+  value = Eval("(or (= 1 2) (+ 3 4) baz)");
+  EXPECT_INTEQ(7,value);
+  value = Eval("(or (+ 1 1) baz (+ 3 4))");
+  EXPECT_INTEQ(2,value);
+
+  // set!
+  Eval("(define foo 1)");
+  value = Eval("(set! foo (+ 1 2))");
+  EXPECT_INTEQ(3,value);
+  value = Eval("foo");
+  EXPECT_INTEQ(3,value);
+
+  // cons,car,cdr,set-car!,set-cdr!
+  Eval("(define foo (cons (+ 1 2) (+ 3 4)))");
+  value = Eval("(car foo)");
+  EXPECT_INTEQ(3,value);
+  value = Eval("(cdr foo)");
+  EXPECT_INTEQ(7,value);
+  value = Eval("(set-car! foo (+ 5 6))");
+  EXPECT_INTEQ(11,value);
+  value = Eval("(car foo)");
+  EXPECT_INTEQ(11,value);
+  value = Eval("(set-cdr! foo (+ 6 8))");
+  EXPECT_INTEQ(14,value);
+  value = Eval("(cdr foo)");
+  EXPECT_INTEQ(14,value);
+  
+  // list
+  value = Eval("(list)");
+  EXPECT_TRUE(value.IsNull());
+  value = Eval("(list 0 1 (+ 0 1) (+ 1 (+ 0 1)) \
+                      (+ (+ 0 1) (+ 1 (+ 0 1))))");
+  EXPECT_LISTEQ(value, LIST(INT(0),INT(1),INT(1),INT(2),INT(3)));
+}
+
+TEST_F(EvalTest, test_cond)
+{
+  Data value;
+
+  value = Eval("(cond ((= 1 (+ 0 1)) (quote foo)) \
+                      ((= 2 (+ 1 1)) (quote bar)) \
+                      (else baz))");
+  EXPECT_SYMEQ("foo",value);
+
+  Eval("(define false ())");
+  Eval("(define true (quote t))");
+  
+  value = Eval("(cond (true (quote foo)) \
+                      ((= 2 (+ 1 1)) (quote bar)) \
+                      (else baz))");
+
+  EXPECT_SYMEQ("foo",value);
+
+  value = Eval("(cond (1 (quote foo)) \
+                      ((= 2 (+ 1 1)) (quote bar)) \
+                      (else baz))");
+  EXPECT_SYMEQ("foo",value);
+  
+  value = Eval("(cond ((= 1 2) (quote foo)) \
+                      ((= 2 (+ 1 1)) (quote bar)) \
+                      (else baz))");
+  // though baz is not defined, no error should occur
+  EXPECT_SYMEQ("bar",value);
+
+  value = Eval("(cond ((= 1 (+ 1 1)) (quote foo)) \
+                      ((= 2 (+ 1 2)) (quote bar)) \
+                      (else (quote baz)))");
+  EXPECT_SYMEQ("baz",value);
+
+  value = Eval("(cond ((= 1 (+ 1 1)) (quote foo)) \
+                      (else (quote baz)) \
+                      ((= 2 (+ 1 1)) (quote bar)))"); \
+
+  EXPECT_SYMEQ("baz",value);
+  
 }
   
-
-
 
 

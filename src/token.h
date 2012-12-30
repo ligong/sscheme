@@ -33,7 +33,8 @@ class TokenStream
 {
  public:
 
-  TokenStream(std::ifstream* ifs): ifs_(ifs), is_(ifs_) { } 
+  TokenStream(std::ifstream* ifs): ifs_(ifs), is_(ifs_) { }
+  TokenStream(std::istream* is): is_(is) { } 
   TokenStream(const char* str): ss_(str), is_(&ss_) { } 
   Token Next();
   

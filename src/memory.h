@@ -51,6 +51,7 @@ struct Data
   explicit Data(PrimProc proc): type(kPrimProc) { data.proc = proc; }
 
   friend bool operator==(const Data& x, const Data& y);
+  friend bool operator!=(const Data& x, const Data& y);
 
   ~Data();
   Data(const Data&);
@@ -77,6 +78,7 @@ struct Data
   
   static Data null;
   static Data none;
+  static Data ok;
   static Data end_list;
   static Data t;  // true
   static Data f;  // false
@@ -178,6 +180,7 @@ class Memory
 #define NTH(x,n) (Memory::Nth((x),(n)))
 #define SETCAR(pair,x) (Memory::SetCar((pair),(x)))
 #define SETCDR(pair,x) (Memory::SetCdr((pair),(x)))
+
 
 void Initialize(int mem_size);
 

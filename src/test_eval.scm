@@ -1,5 +1,12 @@
-1
-"hello scheme"
-+
-(quote foo)
-(quote (foo (bar)))
+(define (make-account account)
+  (define (withdraw n) 
+    (if (>= account n)
+	(set! account (- account n)))
+    account)
+  (define (deposit n)
+    (set! account (+ account n))
+    account)
+  (lambda (msg)
+    (cond ((eq? msg (quote withdraw)) withdraw)
+	  ((eq? msg (quote deposit)) deposit)
+	  ((eq? msg (quote account)) account))))

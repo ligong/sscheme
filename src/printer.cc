@@ -7,15 +7,15 @@ void PrintRest(Data x);
 void PrintAtom(Data x)
 {
   if (x.IsInt())
-    fprintf(stderr,"%d",x.Int());
+    fprintf(stdout,"%d",x.Int());
   else if (x.IsFloat())
-    fprintf(stderr,"%f",x.Float());
+    fprintf(stdout,"%f",x.Float());
   else if (x.IsString())
-    fprintf(stderr,"\"%s\"",x.String());
+    fprintf(stdout,"\"%s\"",x.String());
   else if (x.IsSymbol())
-    fprintf(stderr,"%s",x.Symbol());
+    fprintf(stdout,"%s",x.Symbol());
   else if (x.IsNull())
-    fprintf(stderr,"NIL");
+    fprintf(stdout,"NIL");
   else
     assert(0);
 }
@@ -26,10 +26,10 @@ void Print(Data x)
   if (x.IsAtom()) {
     PrintAtom(x);
   } else {
-    fprintf(stderr,"(");
+    fprintf(stdout,"(");
     Print(FIRST(x));
     PrintRest(REST(x));
-    fprintf(stderr,")");
+    fprintf(stdout,")");
   }
 }
 
@@ -38,10 +38,10 @@ void PrintRest(Data x)
   if (x.IsNull())
     return;
   else if (x.IsAtom()) {
-    fprintf(stderr," . ");
+    fprintf(stdout," . ");
     Print(x);
   } else {
-    fprintf(stderr," ");
+    fprintf(stdout," ");
     Print(FIRST(x));
     // wish modern compiler support tail recursive
     PrintRest(REST(x));
