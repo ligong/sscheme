@@ -1,1 +1,1 @@
-12345 foo "test test" "" "foo\\bar" 3.14159
+12345 foo "test test" "" "foo\\bar" 3.14159 0.0001

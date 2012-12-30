@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include <stdio.h>
+#include <math.h>
 
 #include "token.h"
 #include "symbol.h"
@@ -35,10 +36,15 @@ TEST(TokenStream, next) {
 
   t = ts.Next();
   EXPECT_EQ(t.type,Token::kFloat);
-  EXPECT_TRUE(abs(t.data.f - 3.14159) < 0.00001);
+  EXPECT_GT(0.000001,fabs(t.data.f - 3.14159));
 
   t = ts.Next();
+  EXPECT_TRUE(t.type == Token::kFloat);
+  EXPECT_GT(0.000001,fabs(t.data.f - 0.0001));
+  
+  t = ts.Next();
   EXPECT_TRUE(t.type == Token::kNone);
+
 
 }
 

@@ -25,12 +25,14 @@ Token& Token::operator=(const Token& that)
   return *this;
 }
  
-// parse integer from file and return it
+// parse integer from file and return it,
+// set the number of analyzed digits in *n
 // WARN: call ERROR if number is too big to
 // fit in long
-static long ParseInt(std::istream* is,int c)
+static long ParseInt(std::istream* is,int c,int* n)
 {
   unsigned long m;
+  int nn;
   int sign = 1;
   
   if (c == '+')
@@ -40,6 +42,8 @@ static long ParseInt(std::istream* is,int c)
     sign = -1;
   }
 
+  nn = 0;
+  
   m = 0;
   for(;c != EOF && isdigit(c); c = is->get()) {
     int d = c - '0';
@@ -47,11 +51,14 @@ static long ParseInt(std::istream* is,int c)
         ((sign < 0) && (m > (LONG_MAX + 1UL - d) / 10UL)))
       ERROR("do not support big number yet");
     m = m*10 + d;
+    ++nn;
   }
 
   if (c != EOF)
     is->unget();
 
+  *n = nn;
+  
   return sign > 0? m:-m;
 }
 
@@ -59,16 +66,16 @@ static long ParseInt(std::istream* is,int c)
 // parameter c must contain the first digit
 static Token NextNumber(std::istream* is,int c)
 {
-  long m = ParseInt(is,c);
+  int n;
+  long m = ParseInt(is,c,&n);
 
   Token t;
   if ((c = is->get()) == '.') {
-    float f,g;
+    float f;
     c = is->get();
-    f = (float)ParseInt(is,c);
+    f = (float)ParseInt(is,c,&n);
     long power = 10;
-    g = f;
-    while ((g/=10) > 1)
+     while (--n > 0)
       power *= 10;
     t.type = Token::kFloat;
     t.data.f = m + f/power;
