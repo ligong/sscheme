@@ -8,6 +8,7 @@
 namespace sscheme {
 
 Data Read(TokenStream& ts);
+Data Read(const char* s);
 
 } // namespace sscheme
     

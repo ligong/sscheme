@@ -28,20 +28,20 @@ Token& Token::operator=(const Token& that)
 // parse integer from file and return it
 // WARN: call ERROR if number is too big to
 // fit in long
-static long ParseInt(FILE* file,int c)
+static long ParseInt(std::istream* is,int c)
 {
   unsigned long m;
   int sign = 1;
   
   if (c == '+')
-    c = fgetc(file);
+    c = is->get();
   else if (c == '-') {
-    c = fgetc(file);
+    c = is->get();
     sign = -1;
   }
 
   m = 0;
-  for(;c != EOF && isdigit(c); c = fgetc(file)) {
+  for(;c != EOF && isdigit(c); c = is->get()) {
     int d = c - '0';
     if (((sign > 0) && (m > (LONG_MAX - d) / 10UL)) ||
         ((sign < 0) && (m > (LONG_MAX + 1UL - d) / 10UL)))
@@ -50,22 +50,22 @@ static long ParseInt(FILE* file,int c)
   }
 
   if (c != EOF)
-    ungetc(c,file);
+    is->unget();
 
   return sign > 0? m:-m;
 }
 
 // parse number from file and return it
 // parameter c must contain the first digit
-static Token NextNumber(FILE* file,int c)
+static Token NextNumber(std::istream* is,int c)
 {
-  long m = ParseInt(file,c);
+  long m = ParseInt(is,c);
 
   Token t;
-  if ((c = fgetc(file)) == '.') {
+  if ((c = is->get()) == '.') {
     float f,g;
-    c = fgetc(file);
-    f = (float)ParseInt(file,c);
+    c = is->get();
+    f = (float)ParseInt(is,c);
     long power = 10;
     g = f;
     while ((g/=10) > 1)
@@ -74,7 +74,7 @@ static Token NextNumber(FILE* file,int c)
     t.data.f = m + f/power;
     return t;
   } else if (c != EOF) {
-    ungetc(c,file);
+    is->unget();
   }
 
   t.type = Token::kInt;
@@ -84,16 +84,16 @@ static Token NextNumber(FILE* file,int c)
 
 // parse string as format "..." and return it
 // assume the first '"' has already been parsed
-static Token NextString(FILE* file)
+static Token NextString(std::istream* is)
 {
   long nbuf = 50;
   int i = 0;
   char* buf = static_cast<char*>(ALLOC(nbuf));
   int c;
   
-  while((c = fgetc(file)) != EOF && c != '"') {
+  while((c = is->get()) != EOF && c != '"') {
     if (c == '\\') { // support escape char '\'
-      if ((c = fgetc(file)) == EOF)
+      if ((c = is->get()) == EOF)
         ERROR("'\' in string must follow a char");
     }
 
@@ -118,12 +118,12 @@ static Token NextString(FILE* file)
 
 static int IsSymbol(int c)
 {
-  return isalnum(c) || strchr("?+-*/_",c);
+  return isalnum(c) || strchr("?+-*/_!=<>",c);
 }
 
 // parse symbol and return it
 // the first char is in c
-static Token NextSymbol(FILE* file,int c)
+static Token NextSymbol(std::istream* is,int c)
 {
   long nbuf = 50;
   char* buf = static_cast<char*>(ALLOC(nbuf));
@@ -138,10 +138,10 @@ static Token NextSymbol(FILE* file,int c)
       RESIZE(buf,nbuf);
     }
     buf[i++] = c;
-  } while(IsSymbol(c = fgetc(file)));
+  } while(IsSymbol(c = is->get()));
   
   if (c != EOF)
-    ungetc(c,file);
+    is->unget();
 
   const char* sym = Symbol::New(buf,i);
   FREE(buf);
@@ -157,14 +157,24 @@ Token TokenStream::Next()
   int c;
 
   // skip blanks
-  while(isblank(c = fgetc(file_)) || (c=='\r') || (c=='\n'))
+  while(isblank(c = is_->get()) || (c=='\r') || (c=='\n'))
     ;
   if (c == EOF)
     return Token(Token::kNone);
-  else if (isdigit(c) || (c == '-'))
-    return NextNumber(file_,c);
-  else if (c == '\"')
-    return NextString(file_);
+  else if (isdigit(c) || (c == '-')) {
+    if (c == '-') {
+      int d = is_->get();
+      if (d != EOF)
+        is_->unget();
+      if (isdigit(d) || d == '.') {
+        return NextNumber(is_,c);
+      } else
+        return NextSymbol(is_,c);
+    } else {
+      return NextNumber(is_,c);
+    }
+  } else if (c == '\"')
+    return NextString(is_);
   else if (c == '(')
     return Token(Token::kLParen);
   else if (c == ')')
@@ -172,8 +182,9 @@ Token TokenStream::Next()
   else if (c == '.')
     return Token(Token::kDot);
   else
-    return NextSymbol(file_,c);
+    return NextSymbol(is_,c);
 }
 
 } // namespace sscheme
+
 

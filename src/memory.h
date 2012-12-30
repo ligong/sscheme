@@ -2,9 +2,12 @@
 #define SSCHEME_SRC_MEMORY_H_
 
 #include <assert.h>
+#include <string.h>
+#include <stdarg.h>
+#include <vector>
+
 #include "utils.h"
 #include "symbol.h"
-#include <string.h>
 
 // Scheme's memory model
 namespace sscheme {
@@ -13,14 +16,17 @@ namespace sscheme {
 // is all represented by typed pointer
 struct Data
 {
+
+  typedef Data (*PrimProc)(Data args); 
   enum TYPE {kInt,kBigNumber,kFloat,kString,kSymbol,kPair,
-             kNull,kNone,kEndList,kInvalid} type;
+             kNull,kNone,kEndList,kPrimProc,kInvalid} type;
   union {
     int i;                   // integer
     float f;                 // float
     char* str;               // pointer to string
     const char* sym;         // pointer to symbol
     int p;                   // pointer to pair, refer to class Memory
+    PrimProc proc;           // pointer to primitive application
   } data;
 
   Data(): type(kInvalid) { }
@@ -42,6 +48,9 @@ struct Data
   
   explicit Data(float ff): type(kFloat) { data.f = ff; }
 
+  explicit Data(PrimProc proc): type(kPrimProc) { data.proc = proc; }
+
+  friend bool operator==(const Data& x, const Data& y);
 
   ~Data();
   Data(const Data&);
@@ -50,6 +59,9 @@ struct Data
   bool IsNull() { return type == kNull; }
   bool IsInt() { return type == kInt; }
   bool IsFloat() { return type == kFloat; }
+  bool IsBigNumber() { return type == kBigNumber; }
+  bool IsPrimApp() { return type == kPrimProc; }
+  bool IsNumber() { return IsInt() || IsFloat() || IsBigNumber(); }
   bool IsSymbol() { return type == kSymbol; }
   bool IsString() { return type == kString; }
   bool IsPair() { return type == kPair; }
@@ -60,10 +72,14 @@ struct Data
   float Float() {assert(IsFloat()); return data.f;}
   char* String() {assert(IsString()); return data.str;}
   const char* Symbol() {assert(IsSymbol()); return data.sym;}
+  PrimProc PrimApp() {assert(IsPrimApp()); return data.proc;}
 
+  
   static Data null;
   static Data none;
   static Data end_list;
+  static Data t;  // true
+  static Data f;  // false
   
 };
 
@@ -81,9 +97,9 @@ struct Machine
   Data val;   // evaluated value
   Data arg1;  // accumulate evaluated parameters
   Data proc;  // operator
-  Data stack;
+  std::vector<Data> stack;
   
-  void Push(Data x);
+  void Push(Data& x);
   Data Pop();
   bool IsStackEmpty();
 };
@@ -92,22 +108,25 @@ extern Machine g_machine;
 
 class Memory
 {
-  
  public:
   
   static Data NewInt(int i);
   static Data NewString(const char* s);
   static Data NewSymbol(const char* sym);
   static Data NewFloat(float f);
-  static Data NewPair(Data x, Data y);
+  static Data NewPair(const Data& x, const Data& y);
+  static Data NewProc(Data::PrimProc proc);
 
-  static Data Car(Data pair);
-  static Data Cdr(Data pair);
-  static void SetCar(Data pair, Data x);
-  static void SetCdr(Data pair, Data x);
+  static Data Car(const Data& pair);
+  static Data Cdr(const Data& pair);
+  static void SetCar(Data pair, const Data& x);
+  static void SetCdr(Data pair, const Data& x);
   static Data First(Data list);
   static Data Rest(Data list);
+  static Data List(Data v[], int n);
   static Data Nth(Data list, int n);
+  static bool Equal(Data x, Data y);
+  static int Length(Data list);
   static Data ReverseList(Data list);
 
   // assert data is valid
@@ -127,6 +146,9 @@ class Memory
   static int free_;
   static int size_;
 
+  static Data tmp_list_; // used by List and will be taken care by garbage collector
+  static Data tmp_x;
+  static Data tmp_y;
   static void GarbageCollect();
   
 };
@@ -140,6 +162,19 @@ class Memory
 #define CAADR(x) (CAR(CADR(x)))
 #define FIRST(x) (Memory::First(x))
 #define REST(x) (Memory::Rest(x))
+#define SECOND(x) (FIRST(REST(x)))
+#define THIRD(x) (FIRST(REST(REST(x))))
+#define FOURTH(x) (FIRST(REST(REST(REST(x)))))
+
+//#define LIST(data_array) (Memory::List(data_array,NELEMS(data_array)))
+
+#define LIST(...) \
+  (Memory::List(((Data[]){__VA_ARGS__}),NELEMS(((Data[]){__VA_ARGS__}))))
+
+#define EQUAL(x,y) (Memory::Equal(x,y))
+
+#define LENGTH(list) (Memory::Length(list))
+
 #define NTH(x,n) (Memory::Nth((x),(n)))
 #define SETCAR(pair,x) (Memory::SetCar((pair),(x)))
 #define SETCDR(pair,x) (Memory::SetCdr((pair),(x)))

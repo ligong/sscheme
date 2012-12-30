@@ -50,7 +50,29 @@ Data& Data::operator=(const Data& x)
 Data Data::null(Data::kNull);
 Data Data::none(Data::kNone);
 Data Data::end_list(Data::kEndList);
+Data Data::f(Data::kNull);
+Data Data::t = Memory::NewSymbol(Symbol::New("true"));
 
+bool operator==(const Data& x, const Data& y)
+{
+  if (x.type != y.type || x.type == Data::kInvalid)
+    return false;
+
+  if (x.type == Data::kInt)
+    return x.data.i == y.data.i;
+  else if (x.type == Data::kFloat)
+    return x.data.f == y.data.f;
+  else if (x.type == Data::kString)
+    return x.data.str == y.data.str;
+  else if (x.type == Data::kSymbol)
+    return x.data.sym == y.data.sym;
+  else if (x.type == Data::kPair)
+    return x.data.p == y.data.p;
+  else if (x.type == Data::kPrimProc)
+    return x.data.proc == y.data.proc;
+  else
+    return true;
+}
 
 Data* Memory::car_;
 Data* Memory::cdr_;
@@ -60,7 +82,9 @@ Data* Memory::car2_;
 Data* Memory::cdr2_;
 int   Memory::free_;
 int   Memory::size_;
-
+Data  Memory::tmp_list_;
+Data  Memory::tmp_x;
+Data  Memory::tmp_y;
 
 Data Memory::NewInt(int i)
 {
@@ -83,16 +107,25 @@ Data Memory::NewFloat(float f)
   return Data(f);
 }
 
-Data Memory::NewPair(Data x, Data y)
+Data Memory::NewProc(Data::PrimProc proc)
 {
-  if (free_ >= size_)
-    GarbageCollect();
-  
-  // GarbageCollect should ERROR if out of memory
-  assert(free_ < size_); 
+  return Data(proc);
+}
 
-  car_[free_] = x;
-  cdr_[free_] = y;
+Data Memory::NewPair(const Data& x, const Data& y)
+{
+  if (free_ >= size_) {
+    tmp_x = x;
+    tmp_y = y;
+    GarbageCollect();
+    // GarbageCollect should ERROR if out of memory
+    assert(free_ < size_);
+    car_[free_] = tmp_x;
+    cdr_[free_] = tmp_y;
+  } else {
+    car_[free_] = x;
+    cdr_[free_] = y;
+  }
   return Data(Data::kPair,free_++);
 }
 
@@ -103,14 +136,14 @@ void Memory::Assert(Data x)
           (x.data.p >= 0 && x.data.p < free_)));
 }
 
-Data Memory::Car(Data pair)
+Data Memory::Car(const Data& pair)
 {
   Assert(pair);
 
   return Memory::car_[pair.data.p];
 }
 
-Data Memory::Cdr(Data pair)
+Data Memory::Cdr(const Data& pair)
 {
   Assert(pair);
   return cdr_[pair.data.p];
@@ -160,20 +193,19 @@ Data Memory::ReverseList(Data list)
   return newlist;
 }
 
-void Memory::SetCar(Data pair, Data x)
+void Memory::SetCar(Data pair, const Data& x)
 {
   Assert(pair);
   assert(pair.IsPair());
   car_[pair.data.p] = x;
 }
 
-void Memory::SetCdr(Data pair, Data x)
+void Memory::SetCdr(Data pair, const Data& x)
 {
   Assert(pair);
   assert(pair.IsPair());
   cdr_[pair.data.p] = x;
 }
-
 
 void Memory::Init(int size)
 {
@@ -192,31 +224,75 @@ void Memory::Init(int size)
   
 }
 
+Data Memory::List(Data v[], int n)
+{
+  tmp_list_ = Data::null;
+
+  for(int i = 0; i < n; i++) {
+    tmp_list_ = Memory::NewPair(v[i],tmp_list_);
+  }
+
+  Data list = tmp_list_;
+  tmp_list_ = Data::null;
+
+  return ReverseList(list);
+}
+
+int Memory::Length(Data list)
+{
+  assert(list.IsList());
+
+  int n = 0;
+  while(!list.IsNull()) {
+    list = REST(list);
+    ++n;
+  }
+  return n;
+}
+
+bool Memory::Equal(Data x, Data y)
+{
+  if (x.IsAtom() && y.IsAtom()) {
+    if (x.IsString() && y.IsString()) {
+      return strcmp(x.String(),y.String()) == 0;
+    } else {
+      return x == y;
+    }
+  } else if (x.IsPair() && y.IsPair()) {
+    return (Equal(FIRST(x),FIRST(y)) &&
+            Equal(REST(x),REST(y)));
+  } else
+    return false;
+}
+      
+
 void Initialize(int mem_size)
 {
   Memory::Init(mem_size);
 
-  g_machine.stack = Data::null;
+  for(int i = 0; i < int(g_machine.stack.size()); i++)
+    g_machine.stack[i] = Data::null;
+  g_machine.stack.clear();
+  
   g_machine.env = Data::null;
-
 }
 
-void Machine::Push(Data x)
+void Machine::Push(Data& x)
 {
-  stack = Memory::NewPair(x,stack);
+  stack.push_back(x);
 }
 
 Data Machine::Pop()
 {
-  assert(!IsStackEmpty());
-  Data d = FIRST(stack);
-  stack = REST(stack);
+  assert(stack.size() > 0);
+  Data d = stack.back();
+  stack.pop_back();
   return d;
 }
 
 bool Machine::IsStackEmpty()
 {
-  return stack.IsNull();
+  return stack.size() == 0;
 }
 
 void Memory::GarbageCollect()
@@ -225,3 +301,5 @@ void Memory::GarbageCollect()
 }
 
 } // namespace sscheme
+
+

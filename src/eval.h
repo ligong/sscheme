@@ -5,11 +5,14 @@
 
 namespace sscheme {
 
-// evaluate s-expression in env environment
-Data Eval(Data sexp, Data env);
+// evaluate s-expression(g_machine.exp) in g_machine.env environment
+Data Eval();
+Data Eval(const char* str);
 
-// apply procedure proc to parameters
-Data Apply(Data proc,Data parameters);
+// apply g_machine.proc operator to g_machine.arg1 parameters
+Data Apply();
+
+void InitialEnvironment();
 
 } // namespace sscheme
 

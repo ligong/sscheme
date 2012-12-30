@@ -31,6 +31,7 @@ Data Read(TokenStream& ts)
   return x;
 }
 
+
 Data ReadList(TokenStream& ts)
 {
   Data list = Data::null;
@@ -47,6 +48,12 @@ Data ReadList(TokenStream& ts)
   return Memory::ReverseList(list);
 }
 
-} // namespace sscheme
+Data Read(const char* str)
+{
+  TokenStream ts(str);
+  return Read(ts);
+}
 
+
+} // namespace sscheme
 

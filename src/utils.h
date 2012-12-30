@@ -10,7 +10,9 @@ namespace sscheme {
 
 bool ParseInt(const char* str, long* n);
 
-#define ERROR(x) ((void)(fprintf(stderr,"%s\n",x),assert(0),0))
+#define ERROR(...) ((void)(fprintf(stderr,__VA_ARGS__),\
+                           fprintf(stderr,"\n"),\
+                           assert(0),0))
 
 
 void* Mem_alloc(long nbytes, const char *file, int line);

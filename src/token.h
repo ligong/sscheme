@@ -4,7 +4,10 @@
 #include <stdio.h>
 
 #include "utils.h"
-
+#include <fstream>
+#include <istream>
+#include <iostream>
+#include <sstream>
 
 namespace sscheme {
 
@@ -30,11 +33,14 @@ class TokenStream
 {
  public:
 
-  TokenStream(FILE* file): file_(file) { }
+  TokenStream(std::ifstream* ifs): ifs_(ifs), is_(ifs_) { } 
+  TokenStream(const char* str): ss_(str), is_(&ss_) { } 
   Token Next();
   
  private:
-  FILE* file_;
+  std::ifstream* ifs_;
+  std::stringstream ss_;
+  std::istream* is_;
 };
 
 } // namespace sscheme

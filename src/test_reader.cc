@@ -5,14 +5,15 @@
 #include "memory.h"
 #include "token.h"
 #include "stdio.h"
+#include <fstream>
 
 using namespace sscheme;
 
 TEST(Reader, read) {
 
-  FILE* file = fopen("src/test_reader.txt","r");
-  assert(file);
-  TokenStream ts(file);
+  std::ifstream ifs("src/test_reader.txt");
+  assert(ifs.good());
+  TokenStream ts(&ifs);
 
   Data x = Read(ts);
   EXPECT_TRUE(x.IsPair());

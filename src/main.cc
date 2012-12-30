@@ -19,7 +19,7 @@ void Repl(char* name, FILE* file)
     g_machine.exp = Read(ts);
     if (g_machine.exp.type == Data::kNone)
       break;
-    Data value = Eval(g_machine.exp, g_machine.env);
+    Data value = Eval();
     if (!name) {
       printf("Value: ");
       Print(value);
@@ -34,10 +34,11 @@ int main(int argc, char* argv[])
 {
 
   sscheme::Initialize(5*1024*1024);
+  sscheme::InitialEnvironment();
   
   for(int i = 1; i < argc; i++) {
-    FILE* file = fopen(argv[i],"r");
-    if (file == NULL) {
+    ifstream ifs(argv[i]);
+    if (!ifs.good()) {
       fprintf(stderr,"%s fail to open %s(%s)\n", argv[0], argv[i], strerror(errno));
       return EXIT_FAILURE;
     } else

@@ -20,7 +20,8 @@ LIBS +=
 
 SOURCES = $(shell find src -name '*test*.cc' -prune -o -name '*.cc' -print | sort | tr "\n" " ")
 TEST_SOURCES = $(shell find src -name '*test*.cc' | sort | tr "\n" " ")
-TEST_SOURCES += src/symbol.cc src/utils.cc src/memory.cc src/token.cc src/reader.cc
+TEST_SOURCES += src/symbol.cc src/utils.cc src/memory.cc src/token.cc src/reader.cc src/eval.cc \
+                src/printer.cc
 
 
 OBJECTS = $(SOURCES:.cc=.o)
@@ -42,4 +43,4 @@ run_test: test
 	./test
 
 clear:
-	find . -name "*.o" -o -name test -o -name sscheme -name "*~" |xargs rm
+	find . -name "*.o" -o -name test -o -name sscheme -o -name "*~" |xargs rm

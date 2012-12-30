@@ -64,11 +64,16 @@ TEST(Memory, Memory) {
   EXPECT_TRUE(y.IsString());
   EXPECT_TRUE(strcmp(y.String(),"foobar") == 0);
 
-  int v[] = {0,1,2,3,4,5,6,7,8,9,10,11};
 
+
+}
+
+TEST(Machine, test_list)
+{
+  int v[] = {0,1,2,3,4,5,6,7,8,9,10,11};
   Data list = Data::null;
   for(int i = 0; i < NELEMS(v); i++)
-    list = CONS(Memory::NewInt(v[i]),list);
+    list = Memory::NewPair(Memory::NewInt(v[i]),list);
   for(int i = 0; i < NELEMS(v); i++)
     EXPECT_EQ(v[i], NTH(list,NELEMS(v) - i).Int());
 
@@ -77,7 +82,35 @@ TEST(Memory, Memory) {
   for(int i = 0; i < NELEMS(v); i++)
     EXPECT_EQ(v[i], NTH(list,i+1).Int());
 
-  
-  
+#define I(x) Memory::NewInt(x)
+  list = LIST(I(0),I(1),I(2),I(3),I(4));
+  for(int i = 0; i < 5; i++)
+    EXPECT_EQ(i, NTH(list,i+1).Int());
 }
 
+TEST(Machine, test_stack)
+{
+  int v[] = {0,1,2,3,4,5,6,7,8,9,10,11};
+  for(int i = 0; i < NELEMS(v); i++) {
+    Data x = Memory::NewInt(v[i]);
+    g_machine.Push(x);
+  }
+  for(int i = 0; i < NELEMS(v); i++) {
+    Data x = g_machine.Pop();
+    EXPECT_EQ(v[NELEMS(v)-i-1],x.Int());
+  }
+    
+}
+
+TEST(Memory, test_equal) {
+
+#define I(x) Memory::NewInt(x)
+#define STR(x) Memory::NewString(x)  
+  EXPECT_TRUE(EQUAL(I(1),I(1)));
+  EXPECT_TRUE(EQUAL(STR("foo"),STR("foo")));
+  EXPECT_TRUE(EQUAL(LIST(I(1),LIST(I(2))),
+                    LIST(I(1),LIST(I(2)))));
+  EXPECT_TRUE(!EQUAL(LIST(I(1),LIST(I(2))),
+                     LIST(I(1),LIST(I(3)))));
+
+}

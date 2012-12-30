@@ -4,14 +4,14 @@
 
 #include "token.h"
 #include "symbol.h"
+#include <fstream>
 
 using namespace sscheme;
 
 TEST(TokenStream, next) {
 
-  FILE* file = fopen("src/test_token.txt","r");
-
-  TokenStream ts = TokenStream(file);
+  std::ifstream ifs("src/test_token.txt");
+  TokenStream ts(&ifs);
 
   Token t = ts.Next();
   EXPECT_EQ(t.type, Token::kInt);
@@ -40,8 +40,6 @@ TEST(TokenStream, next) {
   t = ts.Next();
   EXPECT_TRUE(t.type == Token::kNone);
 
-  fclose(file);
-  
 }
 
 
