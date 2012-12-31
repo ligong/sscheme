@@ -132,10 +132,11 @@ Data Memory::NewPair(const Data& x, const Data& y)
     tmp_y = y;
     GarbageCollect();
     // GarbageCollect should ERROR if out of memory
-    if (free_ < size_)
+    if (free_ >= size_)
       ERROR("Garbage collect fail: out of memory");
     car_[free_] = tmp_x;
     cdr_[free_] = tmp_y;
+    tmp_x = tmp_y = Data::null;
   } else {
     car_[free_] = x;
     cdr_[free_] = y;

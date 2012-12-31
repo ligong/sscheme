@@ -14,7 +14,7 @@
 
 using namespace sscheme;
 
-const int kMemSize = 5*1024;
+const int kMemSize = 500;
 
 // return the occupied size in memory
 int OccupiedSize()
@@ -25,7 +25,7 @@ int OccupiedSize()
 class EvalTestGarbageCollect  : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    sscheme::Initialize(5*1024);
+    sscheme::Initialize(kMemSize);
   }
   // virtual void TearDown() {}
 };
@@ -84,5 +84,35 @@ TEST_F(EvalTestGarbageCollect, test_garbage_collect) {
   g_machine.arg1 = g_machine.val = Data::null;
   Memory::GarbageCollect();
   EXPECT_EQ(0,OccupiedSize());
-  
 }
+
+
+TEST_F(EvalTestGarbageCollect, test_traffic) 
+{
+  Data& exp = g_machine.exp;
+  srand(clock());
+  for(int i = 0; i < 20000; i++) {
+    // generate a list under kMemSize/2
+    // verify it is right
+    exp = Data::null;
+    int n = rand() % int(kMemSize/2);
+    for(int j = 0; j < n; j++)
+      exp = CONS(INT(j),exp);
+    while(--n >= 0) {
+      EXPECT_EQ(n,FIRST(exp).Int());
+      exp = REST(exp);
+    }
+    if (i % 5000 == 0) {
+      printf(".");
+      fflush(stdout);
+    }
+  }
+  printf("\n");
+  exp = Data::null;
+  Memory::GarbageCollect();
+  EXPECT_EQ(0,OccupiedSize());
+}
+    
+
+
+    
