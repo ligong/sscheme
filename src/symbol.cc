@@ -12,7 +12,7 @@ static struct SymbolElt {
   SymbolElt* next;
   int len;
   char bytes[1];
-}* g_buckets[ATOM_BUCKETS_SIZE];
+}* g_buckets[SYMBOL_BUCKETS_SIZE];
 
 static long g_scatter[256] = {
 1804289383,846930886,1681692777,1714636915,1957747793,424238335,719885386,1649760492,
@@ -75,15 +75,17 @@ const char* Symbol::New(const char* bytes, int len)
   // return existing one if found
   SymbolElt* p;
   for(p = g_buckets[h]; p; p = p->next)
-    if (p->len == len && memcmp(bytes,p->bytes,len) == 0)
+    if (p->len == len && strncasecmp(bytes,p->bytes,len) == 0)
       return p->bytes;
   
   // alloc atom, p->bytes's length is len+1 
   p = static_cast<SymbolElt*>(malloc(sizeof(SymbolElt) + len));
   assert(p);
   p->len = len;
-  memcpy(p->bytes,bytes,len);
+  for(int i = 0; i < len; i++)
+    p->bytes[i] = toupper(bytes[i]);
   p->bytes[len] = '\0';
+  
 
   // insert the new atom into buckets
   p->next = g_buckets[h];

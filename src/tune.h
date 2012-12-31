@@ -3,7 +3,7 @@
 
 // define parameters may impact performance
 
-const int ATOM_BUCKETS_SIZE = 4096;
+const int SYMBOL_BUCKETS_SIZE = 4096;
 
 #endif
   

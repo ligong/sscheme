@@ -1,19 +1,16 @@
-Simple scheme
+Simple Scheme
 
-Scheme is known as maxwell of computer science.
+Scheme is known as "Maxwell's Equations of Software"
 I always want to understand how it works.
-So, I write an interpreter for its simple version.
+With the belief that the best way of understanding is writing,
+I use C++ to write an interpreter for a simplified Scheme version.
 
-Following special operators are supported:
-define, lambda, if, cond, let, quote, assign.
+Currently, following special operators are supported:
 
-It also supports big number and tail recursion.
+if,cond,define,lambda,set!,set-car!,set-cdr!,cons,cdr,car,
+list,eq?,string?,string=?,number?,atom?,pair?,not,and,or,
++,-,*,/,<,<=,>,>=,display,newline
 
-Most SICP exercise can be written with it.
-See example directory
+A stop and copy garbage collector is implemented.
 
-
-
-
-
-
+It is really fun to write an interpreter for the great language.
