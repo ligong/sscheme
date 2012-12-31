@@ -12,20 +12,19 @@
 // Scheme's memory model
 namespace sscheme {
 
-// scheme data 
-// is all represented by typed pointer
+// scheme data is all represented as type pointer
 struct Data
 {
 
   typedef Data (*PrimProc)(Data args); 
   enum TYPE {kInt,kBigNumber,kFloat,kString,kSymbol,kPair,
-             kNull,kNone,kEndList,kPrimProc,kInvalid} type;
+             kNull,kNone,kEndList,kPrimProc,kBrokenHeart,kInvalid} type;
   union {
     int i;                   // integer
     float f;                 // float
     char* str;               // pointer to string
     const char* sym;         // pointer to symbol
-    int p;                   // pointer to pair, refer to class Memory
+    int p;                   // pointer to pair;see class Memory below
     PrimProc proc;           // pointer to primitive application
   } data;
 
@@ -68,13 +67,13 @@ struct Data
   bool IsPair() { return type == kPair; }
   bool IsAtom() {return !IsPair();}
   bool IsList() {return IsNull() || IsPair();}
+  bool IsBrokenHeart() {return type == kBrokenHeart; }
 
   int Int() {assert(IsInt()); return data.i;}
   float Float() {assert(IsFloat()); return data.f;}
   char* String() {assert(IsString()); return data.str;}
   const char* Symbol() {assert(IsSymbol()); return data.sym;}
   PrimProc PrimApp() {assert(IsPrimApp()); return data.proc;}
-
   
   static Data null;
   static Data none;
@@ -128,7 +127,7 @@ class Memory
   static Data List(Data v[], int n);
   static Data Nth(Data list, int n);
   static bool Equal(Data x, Data y);
-  static int Length(Data list);
+  static int  Length(Data list);
   static Data ReverseList(Data list);
 
   // assert data is valid
@@ -136,8 +135,14 @@ class Memory
 
   static void Init(int size = 5 * 1024 * 1024);
 
- private:
+  static void GarbageCollect();
+
+  // free cons size
+  static int FreeSize(); 
   
+ private:
+
+  static Data Migrate(Data old);
   static Data* car_;
   static Data* cdr_;
   static Data* car1_;
@@ -146,13 +151,17 @@ class Memory
   static Data* cdr2_;
 
   static int free_;
+  static int limit_;
   static int size_;
 
   static Data tmp_list_; // used by List and will be taken care by garbage collector
   static Data tmp_x;
   static Data tmp_y;
-  static void GarbageCollect();
-  
+
+  static int new_free_;
+  static Data* new_car_;
+  static Data* new_cdr_;
+
 };
 
 #define CONS(x,y) (Memory::NewPair(x,y))
@@ -167,9 +176,6 @@ class Memory
 #define SECOND(x) (FIRST(REST(x)))
 #define THIRD(x) (FIRST(REST(REST(x))))
 #define FOURTH(x) (FIRST(REST(REST(REST(x)))))
-
-//#define LIST(data_array) (Memory::List(data_array,NELEMS(data_array)))
-
 #define LIST(...) \
   (Memory::List(((Data[]){__VA_ARGS__}),NELEMS(((Data[]){__VA_ARGS__}))))
 
@@ -180,7 +186,6 @@ class Memory
 #define NTH(x,n) (Memory::Nth((x),(n)))
 #define SETCAR(pair,x) (Memory::SetCar((pair),(x)))
 #define SETCDR(pair,x) (Memory::SetCdr((pair),(x)))
-
 
 void Initialize(int mem_size);
 

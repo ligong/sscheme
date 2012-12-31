@@ -94,6 +94,11 @@ Data  Memory::tmp_list_;
 Data  Memory::tmp_x;
 Data  Memory::tmp_y;
 
+int Memory::new_free_;
+Data* Memory::new_car_;
+Data* Memory::new_cdr_;
+
+
 Data Memory::NewInt(int i)
 {
   return Data(Data::kInt, i);
@@ -127,7 +132,8 @@ Data Memory::NewPair(const Data& x, const Data& y)
     tmp_y = y;
     GarbageCollect();
     // GarbageCollect should ERROR if out of memory
-    assert(free_ < size_);
+    if (free_ < size_)
+      ERROR("Garbage collect fail: out of memory");
     car_[free_] = tmp_x;
     cdr_[free_] = tmp_y;
   } else {
@@ -139,11 +145,14 @@ Data Memory::NewPair(const Data& x, const Data& y)
 
 void Memory::Assert(Data x)
 {
-  assert(x.type != Data::kInvalid &&
-         (x.type != Data::kPair ||
-          (x.data.p >= 0 && x.data.p < free_)));
+  assert(x.type != Data::kInvalid);
+  if (x.IsPair() && !x.IsBrokenHeart()) {
+    if (!(x.data.p >= 0 && x.data.p < free_) )
+      printf("fail");
+    assert(x.data.p >= 0 && x.data.p < free_);
+  }
 }
-
+    
 Data Memory::Car(const Data& pair)
 {
   Assert(pair);
@@ -218,6 +227,11 @@ void Memory::SetCdr(Data pair, const Data& x)
 void Memory::Init(int size)
 {
   assert(size > 0);
+
+  FREE(car1_);
+  FREE(cdr1_);
+  FREE(car2_);
+  FREE(cdr2_);
   
   car1_ = static_cast<Data*>(ALLOC(size * sizeof(Data)));
   cdr1_ = static_cast<Data*>(ALLOC(size * sizeof(Data)));
@@ -229,6 +243,8 @@ void Memory::Init(int size)
   
   size_ = size;
   free_ = 0;
+
+  tmp_list_ = tmp_x = tmp_y = Data::null;
   
 }
 
@@ -281,8 +297,13 @@ void Initialize(int mem_size)
   for(int i = 0; i < int(g_machine.stack.size()); i++)
     g_machine.stack[i] = Data::null;
   g_machine.stack.clear();
+
+  Data* registers[] = {&g_machine.exp, &g_machine.unev, &g_machine.env,
+                       &g_machine.val, &g_machine.arg1, &g_machine.proc};
+
   
-  g_machine.env = Data::null;
+  for(int i = 0; i < NELEMS(registers); i++)
+    *registers[i] = Data::null;
 }
 
 void Machine::Push(Data& x)
@@ -303,11 +324,66 @@ bool Machine::IsStackEmpty()
   return stack.size() == 0;
 }
 
-void Memory::GarbageCollect()
+Data Memory::Migrate(Data old)
 {
-
+  if (!old.IsPair())
+    return old;
+  else if (CAR(old).IsBrokenHeart())
+    return CDR(old);
+  else {
+    if (new_free_ >= size_)
+      ERROR("Garbage collect failure: out of memory in migrate");
+    new_car_[new_free_] = CAR(old);
+    new_cdr_[new_free_] = CDR(old);
+    Data new_pair = Data(Data::kPair,new_free_);
+    // set brokenheart
+    SETCAR(old,Data(Data::kBrokenHeart));
+    SETCDR(old,new_pair);
+    ++new_free_;
+    return new_pair;
+  }
 }
 
+int Memory::FreeSize()
+{
+  return size_ - free_;
+}
+
+
+void Memory::GarbageCollect()
+{
+  // Initialize variables used by Migrate
+  new_free_ = 0;
+  if (car_ == car1_) {
+    new_car_ = car2_;
+    new_cdr_ = cdr2_;
+  } else {
+    new_car_ = car1_;
+    new_cdr_ = cdr1_;
+  }
+
+  Data* registers[] = {&g_machine.exp, &g_machine.unev, &g_machine.env,
+                       &g_machine.val, &g_machine.arg1, &g_machine.proc,
+                       &tmp_list_, &tmp_x, &tmp_y};
+  
+  
+  for(int i = 0; i < NELEMS(registers); i++)
+    *registers[i] = Migrate(*registers[i]);
+  
+  for(int i = 0; i < (int)g_machine.stack.size(); i++) 
+    g_machine.stack[i] = Migrate(g_machine.stack[i]);
+
+  for(int scan = 0; scan < new_free_; scan++) {
+    new_car_[scan] = Migrate(new_car_[scan]);
+    new_cdr_[scan] = Migrate(new_cdr_[scan]);
+  }
+
+  // swap old memory region and new one
+  car_ = new_car_;
+  cdr_ = new_cdr_;
+  free_ = new_free_;
+}
+  
 } // namespace sscheme
 
 

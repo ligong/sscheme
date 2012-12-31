@@ -1,0 +1,15 @@
+(define (sqrt n)
+  (define (abs x) (if (< x 0) (- x) x))
+  (define (good-enough? guess)
+    (< (abs (- n (square guess))) 0.0001))
+  (define (average x y) (/ (+ x y) 2))
+  (define (square x) (* x x))
+  (define (improve guess)
+    (average (/ n guess) guess))
+  (define (iter guess)
+    (if (good-enough? guess)
+	guess
+	(iter (improve guess))))
+  (iter 1.0))
+
+(display (sqrt 2))
